@@ -2,17 +2,13 @@
 
 #[macro_use]
 extern crate vst;
-extern crate arrayvec;
 
-use self::arrayvec::ArrayVec;
 use vst::api::{Events, Supported};
 use vst::buffer::AudioBuffer;
 use vst::event::Event;
 use vst::plugin::{CanDo, Category, Info, Plugin};
 
 use std::f64::consts::PI;
-
-const CHANNELS: usize = 64;
 
 /// Convert the midi note's pitch into the equivalent frequency.
 ///
@@ -34,7 +30,8 @@ struct Channel {
 struct SineSynth {
     sample_rate: f64,
     time: f64,
-    channels: ArrayVec<[Channel; CHANNELS]>,
+    // channels: ArrayVec<[Channel; CHANNELS]>,
+    channels: Vec<Channel>,
 }
 
 impl SineSynth {
@@ -85,7 +82,7 @@ impl Default for SineSynth {
         SineSynth {
             sample_rate: 44100.0,
             time: 0.0,
-            channels: ArrayVec::new(),
+            channels: Vec::new(),
         }
     }
 }
