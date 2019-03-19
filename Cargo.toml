@@ -1,0 +1,17 @@
+[package]
+name = "vst-test"
+version = "0.1.0"
+authors = ["TailyFair <karolis.kalzanauskas@stud.vgtu.lt>"]
+edition = "2018"
+
+[dependencies]
+vst = "0.0.2"
+
+[lib]
+name = "basicvst"
+path="src/lib.rs"
+crate-type = ["cdylib"]
+
+[[bin]]
+name = "vsthost"
+path = "src/main.rs"
