@@ -53,22 +53,11 @@ impl SineSynth {
     ///
     /// [source]: http://www.midimountain.com/midi/midi_status.htm
     fn process_midi_event(&mut self, data: [u8; 3]) {
-        let hi_nibble = data[0] >> 4;
-        // let lo_nibble = data[0] & 0xf;
-
-        match hi_nibble {
-            0x8 | 0x9 => {
-                if data[2] < 50 {
-                    self.note_on(data[1])
-                };
-
-                if data[2] > 50 {
-                    self.note_off(data[1])
-                };
-            }
-
+        match data[0] {
+            128 => self.note_off(data[1]),
+            144 => self.note_on(data[1]),
             _ => (),
-        };
+        }
     }
 
     fn note_on(&mut self, note: u8) {
@@ -80,7 +69,7 @@ impl SineSynth {
     }
 
     fn note_off(&mut self, note: u8) {
-        for mut chan in self.channels.iter_mut().rev() {
+        for mut chan in self.channels.iter_mut() {
             if chan.key == note {
                 chan.pressed = false;
                 break;
@@ -140,28 +129,19 @@ impl Plugin for SineSynth {
         let output_count = outputs.len();
         let per_sample = self.time_per_sample();
 
-        let len = self.channels.len();
-
-        // for (mut chan, index) in self.channels.iter_mut().rev().zip(0..len) {
-        //     if chan.pressed == false {
-        //         self.channels.remove(index);
-        //         break;
-        //     }
-        // }
+        self.channels.retain(|x| x.pressed == true); // Retain only pressed channels, remove others
 
         for sample_idx in 0..samples {
             let time = self.time;
             let mut output_sample = 0.0;
 
             for mut channel in self.channels.iter_mut() {
-                if channel.pressed {
-                    output_sample +=
-                        ((time * midi_pitch_to_freq(channel.key) * TAU).sin() * 0.1) as f32;
-                }
+                output_sample +=
+                    ((time * midi_pitch_to_freq(channel.key) * TAU).sin() * 0.1) as f32;
 
-                self.time += per_sample;
                 channel.duration += per_sample;
             }
+            self.time += per_sample;
 
             for buf_idx in 0..output_count {
                 let buff = outputs.get_mut(buf_idx);
