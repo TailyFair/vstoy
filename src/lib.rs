@@ -2,13 +2,17 @@
 
 #[macro_use]
 extern crate vst;
+extern crate arrayvec;
 
+use self::arrayvec::ArrayVec;
 use vst::api::{Events, Supported};
 use vst::buffer::AudioBuffer;
 use vst::event::Event;
 use vst::plugin::{CanDo, Category, Info, Plugin};
 
 use std::f64::consts::PI;
+
+const CHANNELS: usize = 64;
 
 /// Convert the midi note's pitch into the equivalent frequency.
 ///
@@ -21,11 +25,16 @@ fn midi_pitch_to_freq(pitch: u8) -> f64 {
     ((f64::from(pitch as i8 - A4_PITCH)) / 12.).exp2() * A4_FREQ
 }
 
+struct Channel {
+    key: u8,
+    duration: f64,
+    pressed: bool,
+}
+
 struct SineSynth {
     sample_rate: f64,
     time: f64,
-    note_duration: f64,
-    note: Option<u8>,
+    channels: ArrayVec<[Channel; CHANNELS]>,
 }
 
 impl SineSynth {
@@ -44,21 +53,38 @@ impl SineSynth {
     ///
     /// [source]: http://www.midimountain.com/midi/midi_status.htm
     fn process_midi_event(&mut self, data: [u8; 3]) {
-        match data[0] {
-            128 => self.note_off(data[1]),
-            144 => self.note_on(data[1]),
+        let hi_nibble = data[0] >> 4;
+        // let lo_nibble = data[0] & 0xf;
+
+        match hi_nibble {
+            0x8 | 0x9 => {
+                if data[2] < 50 {
+                    self.note_on(data[1])
+                };
+
+                if data[2] > 50 {
+                    self.note_off(data[1])
+                };
+            }
+
             _ => (),
-        }
+        };
     }
 
     fn note_on(&mut self, note: u8) {
-        self.note_duration = 0.0;
-        self.note = Some(note)
+        self.channels.push(Channel {
+            key: note,
+            duration: 0.0f64,
+            pressed: true,
+        })
     }
 
     fn note_off(&mut self, note: u8) {
-        if self.note == Some(note) {
-            self.note = None
+        for mut chan in self.channels.iter_mut().rev() {
+            if chan.key == note {
+                chan.pressed = false;
+                break;
+            }
         }
     }
 }
@@ -69,9 +95,8 @@ impl Default for SineSynth {
     fn default() -> SineSynth {
         SineSynth {
             sample_rate: 44100.0,
-            note_duration: 0.0,
             time: 0.0,
-            note: None,
+            channels: ArrayVec::new(),
         }
     }
 }
@@ -94,7 +119,7 @@ impl Plugin for SineSynth {
     // Supresses warning about match statment only having one arm
     #[allow(unknown_lints)]
     #[allow(unused_variables)]
-    #[allow(single_match)]
+    #[allow(clippy::single_match)]
     fn process_events(&mut self, events: &Events) {
         for event in events.events() {
             match event {
@@ -114,28 +139,30 @@ impl Plugin for SineSynth {
         let (_, outputs) = buffer.split();
         let output_count = outputs.len();
         let per_sample = self.time_per_sample();
-        let mut output_sample;
+
+        let len = self.channels.len();
+
+        // for (mut chan, index) in self.channels.iter_mut().rev().zip(0..len) {
+        //     if chan.pressed == false {
+        //         self.channels.remove(index);
+        //         break;
+        //     }
+        // }
+
         for sample_idx in 0..samples {
-            let mut time = self.time;
-            let mut note_duration = self.note_duration;
-            if let Some(current_note) = self.note {
-                let signal = (time * midi_pitch_to_freq(current_note) * TAU).sin();
+            let time = self.time;
+            let mut output_sample = 0.0;
 
-                // Apply a quick envelope to the attack of the signal to avoid popping.
-                let attack = 0.5;
-                let alpha = if note_duration < attack {
-                    note_duration / attack
-                } else {
-                    1.0
-                };
-
-                output_sample = (signal * alpha) as f32;
+            for mut channel in self.channels.iter_mut() {
+                if channel.pressed {
+                    output_sample +=
+                        ((time * midi_pitch_to_freq(channel.key) * TAU).sin() * 0.1) as f32;
+                }
 
                 self.time += per_sample;
-                self.note_duration += per_sample;
-            } else {
-                output_sample = 0.0;
+                channel.duration += per_sample;
             }
+
             for buf_idx in 0..output_count {
                 let buff = outputs.get_mut(buf_idx);
                 buff[sample_idx] = output_sample;
