@@ -1,4 +1,4 @@
-// author: Rob Saunders <hello@robsaunders.io>
+// author: Rob Saunders <hello@robsaunders.io>, TailyFair
 
 #[macro_use]
 extern crate vst;
@@ -32,6 +32,7 @@ struct SineSynth {
     time: f64,
     // channels: ArrayVec<[Channel; CHANNELS]>,
     channels: Vec<Channel>,
+    volume: f64,
 }
 
 impl SineSynth {
@@ -83,6 +84,7 @@ impl Default for SineSynth {
             sample_rate: 44100.0,
             time: 0.0,
             channels: Vec::new(),
+            volume: 0.1,
         }
     }
 }
@@ -129,12 +131,11 @@ impl Plugin for SineSynth {
         self.channels.retain(|x| x.pressed == true); // Retain only pressed channels, remove others
 
         for sample_idx in 0..samples {
-            let time = self.time;
             let mut output_sample = 0.0;
 
             for mut channel in self.channels.iter_mut() {
-                output_sample +=
-                    ((time * midi_pitch_to_freq(channel.key) * TAU).sin() * 0.1) as f32;
+                output_sample += ((self.time * midi_pitch_to_freq(channel.key) * TAU).sin()
+                    * self.volume) as f32;
 
                 channel.duration += per_sample;
             }
