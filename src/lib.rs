@@ -13,6 +13,9 @@ use std::f64::consts::PI;
 mod keyboard;
 use keyboard::*;
 
+mod adsr;
+use adsr::*;
+
 /// Convert the midi note's pitch into the equivalent frequency.
 ///
 /// This function assumes A4 is 440hz.
@@ -28,6 +31,7 @@ struct SineSynth {
     sample_rate: f64,
     time: f64,
     keyboard: Keyboard,
+    adsr: ADSR,
     volume: f64,
 }
 
@@ -75,9 +79,8 @@ impl SineSynth {
             .iter_mut()
             .find(|note| note.freq == midi_pitch_to_freq(pitch))
         {
-            note.freq = 0.0;
             note.release_time = note.duration;
-            note.state = NoteState::Off;
+            note.state = NoteState::Release;
         }
     }
 }
@@ -90,7 +93,8 @@ impl Default for SineSynth {
             sample_rate: 44100.0,
             time: 0.0,
             keyboard: Keyboard::default(),
-            volume: 0.1,
+            adsr: ADSR::new(0.05, 0.0, 1.0, 0.1),
+            volume: 0.2,
         }
     }
 }
@@ -136,17 +140,25 @@ impl Plugin for SineSynth {
 
         for sample_idx in 0..samples {
             let mut output_sample = 0.0;
+            let time = self.time;
 
             for mut note in self.keyboard.notes.iter_mut() {
-                output_sample += ((self.time * note.freq * TAU).sin() * self.volume) as f32;
+                match note.state {
+                    NoteState::Off => (),
+                    _ => {
+                        let value = (time * note.freq * TAU).sin();
 
-                note.duration += per_sample;
+                        output_sample += self.adsr.sample(&mut note, value) * self.volume;
+
+                        note.duration += per_sample;
+                    }
+                }
             }
             self.time += per_sample;
 
             for buf_idx in 0..output_count {
                 let buff = outputs.get_mut(buf_idx);
-                buff[sample_idx] = output_sample;
+                buff[sample_idx] = output_sample as f32;
             }
         }
     }
