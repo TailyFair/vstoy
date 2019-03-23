@@ -10,6 +10,9 @@ use vst::plugin::{CanDo, Category, Info, Plugin};
 
 use std::f64::consts::PI;
 
+mod keyboard;
+use keyboard::*;
+
 /// Convert the midi note's pitch into the equivalent frequency.
 ///
 /// This function assumes A4 is 440hz.
