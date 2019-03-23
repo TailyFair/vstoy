@@ -7,6 +7,8 @@ pub enum NoteState {
     Off,
 }
 
+const KEYBOARD_SIZE: usize = 32;
+
 #[derive(Copy, Clone, Debug)]
 pub struct Note {
     pub state: NoteState,
@@ -27,13 +29,13 @@ impl Default for Note {
 }
 
 pub struct Keyboard {
-    pub notes: [Note; 128],
+    pub notes: [Note; KEYBOARD_SIZE],
 }
 
 impl Default for Keyboard {
     fn default() -> Keyboard {
         Self {
-            notes: [Note::default(); 128],
+            notes: [Note::default(); KEYBOARD_SIZE],
         }
     }
 }
