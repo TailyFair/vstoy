@@ -24,17 +24,10 @@ fn midi_pitch_to_freq(pitch: u8) -> f64 {
     ((f64::from(pitch as i8 - A4_PITCH)) / 12.).exp2() * A4_FREQ
 }
 
-struct Channel {
-    key: u8,
-    duration: f64,
-    pressed: bool,
-}
-
 struct SineSynth {
     sample_rate: f64,
     time: f64,
-    // channels: ArrayVec<[Channel; CHANNELS]>,
-    channels: Vec<Channel>,
+    keyboard: Keyboard,
     volume: f64,
 }
 
@@ -61,20 +54,30 @@ impl SineSynth {
         }
     }
 
-    fn note_on(&mut self, note: u8) {
-        self.channels.push(Channel {
-            key: note,
-            duration: 0.0f64,
-            pressed: true,
-        })
+    fn note_on(&mut self, pitch: u8) {
+        if let Some(note) = self
+            .keyboard
+            .notes
+            .iter_mut()
+            .find(|note| note.freq == midi_pitch_to_freq(pitch) || note.state == NoteState::Off)
+        {
+            note.freq = midi_pitch_to_freq(pitch);
+            note.duration = 0.0;
+            note.release_time = 0.0;
+            note.state = NoteState::Attack;
+        }
     }
 
-    fn note_off(&mut self, note: u8) {
-        for mut chan in self.channels.iter_mut() {
-            if chan.key == note {
-                chan.pressed = false;
-                break;
-            }
+    fn note_off(&mut self, pitch: u8) {
+        if let Some(note) = self
+            .keyboard
+            .notes
+            .iter_mut()
+            .find(|note| note.freq == midi_pitch_to_freq(pitch))
+        {
+            note.freq = 0.0;
+            note.release_time = note.duration;
+            note.state = NoteState::Off;
         }
     }
 }
@@ -86,7 +89,7 @@ impl Default for SineSynth {
         SineSynth {
             sample_rate: 44100.0,
             time: 0.0,
-            channels: Vec::new(),
+            keyboard: Keyboard::default(),
             volume: 0.1,
         }
     }
@@ -131,16 +134,13 @@ impl Plugin for SineSynth {
         let output_count = outputs.len();
         let per_sample = self.time_per_sample();
 
-        self.channels.retain(|x| x.pressed == true); // Retain only pressed channels, remove others
-
         for sample_idx in 0..samples {
             let mut output_sample = 0.0;
 
-            for mut channel in self.channels.iter_mut() {
-                output_sample += ((self.time * midi_pitch_to_freq(channel.key) * TAU).sin()
-                    * self.volume) as f32;
+            for mut note in self.keyboard.notes.iter_mut() {
+                output_sample += ((self.time * note.freq * TAU).sin() * self.volume) as f32;
 
-                channel.duration += per_sample;
+                note.duration += per_sample;
             }
             self.time += per_sample;
 
