@@ -1,18 +1,13 @@
 [package]
-name = "vst-test"
+name = "vstoy"
 version = "0.1.0"
 authors = ["TailyFair <karolis.kalzanauskas@stud.vgtu.lt>"]
 edition = "2018"
 
 [dependencies]
 vst = "0.0.2"
-arrayvec = "0.4.10"
 
 [lib]
-name = "basicvst"
+name = "vstoy"
 path="src/lib.rs"
 crate-type = ["cdylib"]
-
-[[bin]]
-name = "vsthost"
-path = "src/main.rs"

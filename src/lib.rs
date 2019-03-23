@@ -93,8 +93,8 @@ impl Default for SineSynth {
             sample_rate: 44100.0,
             time: 0.0,
             keyboard: Keyboard::default(),
-            adsr: ADSR::new(0.05, 0.0, 1.0, 0.1),
-            volume: 0.2,
+            adsr: ADSR::new(0.1, 0.0, 1.0, 0.5),
+            volume: 0.15,
         }
     }
 }
@@ -102,9 +102,9 @@ impl Default for SineSynth {
 impl Plugin for SineSynth {
     fn get_info(&self) -> Info {
         Info {
-            name: "SineSynth".to_string(),
-            vendor: "DeathDisco".to_string(),
-            unique_id: 6667,
+            name: "VSToy".to_string(),
+            vendor: "TailyFair".to_string(),
+            unique_id: 6699,
             category: Category::Synth,
             inputs: 2,
             outputs: 2,
@@ -122,7 +122,6 @@ impl Plugin for SineSynth {
         for event in events.events() {
             match event {
                 Event::Midi(ev) => self.process_midi_event(ev.data),
-                // More events can be handled here.
                 _ => (),
             }
         }
@@ -146,9 +145,17 @@ impl Plugin for SineSynth {
                 match note.state {
                     NoteState::Off => (),
                     _ => {
-                        let value = (time * note.freq * TAU).sin();
+                        let freq = note.freq;
+                        // let value = (time * freq * TAU).sin();
 
-                        output_sample += self.adsr.sample(&mut note, value) * self.volume;
+                        let mut value = (time * freq * TAU).sin(); // * (-0.0015 * 1.0 * freq * time).exp();
+                                                                   // value += 0.3 * (6.2831 * 2.01 * freq * time).sin() * (-0.0015 * 2.0 * freq * time).exp();
+                                                                   // value += 0.2 * (6.2831 * 4.01 * freq * time).sin() * (-0.0015 * 4.0 * freq * time).exp();
+                        value += 0.2 * value * value * value;
+                        value *= 0.9 + 0.1 * (40.0 * time).cos();
+                        // value *= 1.3;
+
+                        output_sample += self.adsr.sample(&mut note, value);
 
                         note.duration += per_sample;
                     }
@@ -158,7 +165,7 @@ impl Plugin for SineSynth {
 
             for buf_idx in 0..output_count {
                 let buff = outputs.get_mut(buf_idx);
-                buff[sample_idx] = output_sample as f32;
+                buff[sample_idx] = (output_sample * self.volume) as f32;
             }
         }
     }

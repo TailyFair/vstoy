@@ -36,26 +36,29 @@ impl ADSR {
                 if note.duration < self.attack {
                     mix += value * (note.duration / self.attack);
                 } else {
-                    mix += value;
                     note.state = NoteState::Decay;
+                    mix += value;
                 }
             }
             NoteState::Decay => {
+                // TODO Implement Decay
                 note.state = NoteState::Sustain;
+                mix += value;
             }
             NoteState::Sustain => {
                 mix += value * self.sustain;
             }
             NoteState::Release => {
-                let alpha = (note.duration - note.release_time) / self.release;
-                if alpha < self.release {
-                    mix += value * (self.sustain) * (1.0 - alpha);
+                if (note.duration - note.release_time) < self.release {
+                    mix += value
+                        * self.sustain
+                        * (1.0 - ((note.duration - note.release_time) / self.release))
                 } else {
                     note.state = NoteState::Off;
                 }
             }
 
-            NoteState::Off => {}
+            NoteState::Off => (),
         }
 
         return mix;
